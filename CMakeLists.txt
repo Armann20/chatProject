@@ -21,4 +21,9 @@ else()
   set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY_EXECUTABLE})
 endif()
 
+find_package(Boost REQUIRED COMPONENTS system)
+
 add_executable(chat main.cpp)
+target_link_libraries(chat
+ PRIVATE
+ Boost::system)
