@@ -46,8 +46,12 @@ public:
             return false;
         }
         
-        std::cout << "Server started!" << std::endl;
+        std::cout << "[Server] started!" << std::endl;
         return true;
+    }
+    void Stop()
+    {
+        _context.stop();
     }
 private:
     io_context _context;
