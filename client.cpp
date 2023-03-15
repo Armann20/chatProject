@@ -1,9 +1,10 @@
-#include "net/common_headers.h"
-#include "net/connection.h"
+ #include "net/common_headers.h"
+ #include "net/connection.h"
+ 
+ #include <boost/asio.hpp>
 
-using namespace boost::asio;
-
-class Client
+ using namespace boost::asio;
+ class Client
 {
 public:
 	Client()
@@ -11,19 +12,24 @@ public:
     {
     }
 
-    virtual ~Client() = default;
+    virtual ~Client()
+    {}
 public:
 
     void Connect(const std::string& host, const int port) {
         ip::tcp::resolver resolver(_context);
         auto endpoint = resolver.resolve(host, std::to_string(port));
-        auto handler = [this](std::error_code ec, ip::tcp::endpoint& ep) // <-- define lambda function
-        {
-            if (!ec) {
-
-            }
-        };
-        async_connect(_socket, endpoint,handler);
+        async_connect(_socket, endpoint,
+            [this](std::error_code ec, ip::tcp::endpoint ep)
+            {
+                if(!ec)
+                {
+                    while(true)
+                    {
+                        
+                    }
+                }                    
+            });
     }
     void Disconnect()
     {}
@@ -35,12 +41,12 @@ public:
 private:
 
     io_context _context;
-    std::thread _thread;
+
     ip::tcp::socket _socket;
 
 };
-int main()
-{
+ int main()
+ {
     Client client;
-    client.Connect("localhost", 8001);
+    client.Connect("localhost", 1234);
 }
