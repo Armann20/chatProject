@@ -23,7 +23,12 @@ endif()
 
 find_package(Boost REQUIRED COMPONENTS system)
 
-add_executable(chat main.cpp)
-target_link_libraries(chat
+add_executable(server server.cpp)
+target_link_libraries(server
+ PRIVATE
+ Boost::system)
+
+ add_executable(client client.cpp)
+ target_link_libraries(client
  PRIVATE
  Boost::system)
