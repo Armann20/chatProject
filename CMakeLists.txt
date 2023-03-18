@@ -27,3 +27,6 @@ add_executable(chat main.cpp)
 target_link_libraries(chat
  PRIVATE
  Boost::system)
+
+# Add the src directory as a subdirectory
+add_subdirectory(src)
