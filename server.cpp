@@ -47,7 +47,7 @@ std::mutex workerThread::m;
 class participant
 {
 public:
-    virtual ~participant() {}
+    virtual ~participant() = default;
     virtual void onMessage(std::array<char, MAX_IP_PACK_SIZE> & msg) = 0;
 };
 
