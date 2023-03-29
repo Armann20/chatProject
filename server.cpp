@@ -47,7 +47,7 @@ std::mutex workerThread::m;
 class participant
 {
 public:
-    virtual ~participant() {}
+    virtual ~participant() = default;
     virtual void onMessage(std::array<char, MAX_IP_PACK_SIZE> & msg) = 0;
 };
 
@@ -73,7 +73,6 @@ public:
         std::string nickname = getNickname(participant);
         std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
 
-        // boundary correctness is guarded by protocol.hpp
         strcpy(formatted_msg.data(), timestamp.c_str());
         strcat(formatted_msg.data(), nickname.c_str());
         strcat(formatted_msg.data(), msg.data());
@@ -260,14 +259,6 @@ int main(int argc, char* argv[])
         for (int i = 0; i < 1; ++i)
         {
             boost::thread * t = new boost::thread{ boost::bind(&workerThread::run, io_context) };
-
-#ifdef __linux__
-            // bind cpu affinity for worker thread in linux
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(i, &cpuset);
-            pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
-#endif
             workers.add_thread(t);
         }
 
