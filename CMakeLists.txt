@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-
+set(CMAKE_THREAD_LIBS_INIT "-lpthread")
+set(CMAKE_HAVE_THREADS_LIBRARY 1)
+set(CMAKE_USE_WIN32_THREADS_INIT 0)
+set(CMAKE_USE_PTHREADS_INIT 1)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 project(Chat VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -21,14 +25,16 @@ else()
   set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY_EXECUTABLE})
 endif()
 
-find_package(Boost REQUIRED COMPONENTS system)
-
+find_package(Boost REQUIRED COMPONENTS system thread)
 add_executable(server server.cpp)
 target_link_libraries(server
  PRIVATE
- Boost::system)
+ Boost::system
+ Boost::thread
+ )
 
  add_executable(client client.cpp)
  target_link_libraries(client
  PRIVATE
- Boost::system)
+ Boost::system
+ )
