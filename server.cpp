@@ -1,235 +1,34 @@
 #include "common_headers.h"
+#include "timestamp.h"
+#include "server.h"
+#include "worker_thread.h"
+#include "room_participants.h"
 
 using boost::asio::ip::tcp;
 
-namespace
-{
-std::string getTimestamp()
-{
-    time_t t = time(0);   // get time now
-    struct tm * now = localtime(&t);
-    std::stringstream ss;
-    ss << '[' << (now->tm_year + 1900) << '-' << std::setfill('0')
-       << std::setw(2) << (now->tm_mon + 1) << '-' << std::setfill('0')
-       << std::setw(2) << now->tm_mday << ' ' << std::setfill('0')
-       << std::setw(2) << now->tm_hour << ":" << std::setfill('0')
-       << std::setw(2) << now->tm_min << ":" << std::setfill('0')
-       << std::setw(2) << now->tm_sec << "] ";
-
-    return ss.str();
-}
-
-class workerThread
-{
-public:
-    static void run(std::shared_ptr<boost::asio::io_context> io_context)
-    {
-        {
-            std::lock_guard < std::mutex > lock(m);
-            std::cout << "[" << std::this_thread::get_id() << "] Thread starts" << std::endl;
-        }
-
-        io_context->run();
-
-        {
-            std::lock_guard < std::mutex > lock(m);
-            std::cout << "[" << std::this_thread::get_id() << "] Thread ends" << std::endl;
-        }
-
-    }
-private:
-    static std::mutex m;
-};
-
-std::mutex workerThread::m;
-}
-
-class participant
-{
-public:
-    virtual ~participant() = default;
-    virtual void onMessage(std::array<char, MAX_IP_PACK_SIZE> & msg) = 0;
-};
-
-class chatRoom {
-public:
-    void enter(std::shared_ptr<participant> participant, const std::string & nickname)
-    {
-        participants_.insert(participant);
-        name_table_[participant] = nickname;
-        std::for_each(recent_msgs_.begin(), recent_msgs_.end(),
-                      boost::bind(&participant::onMessage, participant, _1));
-    }
-
-    void leave(std::shared_ptr<participant> participant)
-    {
-        participants_.erase(participant);
-        name_table_.erase(participant);
-    }
-
-    void broadcast(std::array<char, MAX_IP_PACK_SIZE>& msg, std::shared_ptr<participant> participant)
-    {
-        std::string timestamp = getTimestamp();
-        std::string nickname = getNickname(participant);
-        std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
-
-        strcpy(formatted_msg.data(), timestamp.c_str());
-        strcat(formatted_msg.data(), nickname.c_str());
-        strcat(formatted_msg.data(), msg.data());
-
-        recent_msgs_.push_back(formatted_msg);
-        while (recent_msgs_.size() > max_recent_msgs)
-        {
-            recent_msgs_.pop_front();
-        }
-
-        std::for_each(participants_.begin(), participants_.end(),
-                      boost::bind(&participant::onMessage, _1, std::ref(formatted_msg)));
-    }
-
-    std::string getNickname(std::shared_ptr<participant> participant)
-    {
-        return name_table_[participant];
-    }
-
-private:
-    enum { max_recent_msgs = 100 };
-    std::unordered_set<std::shared_ptr<participant>> participants_;
-    std::unordered_map<std::shared_ptr<participant>, std::string> name_table_;
-    std::deque<std::array<char, MAX_IP_PACK_SIZE>> recent_msgs_;
-};
-
-class personInRoom: public participant,
-                    public std::enable_shared_from_this<personInRoom>
-{
-public:
-    personInRoom(boost::asio::io_context& io_context,
-                 boost::asio::io_context::strand& strand, chatRoom& room)
-                 : socket_(io_context), strand_(strand), room_(room)
-    {
-    }
-
-    tcp::socket& socket() { return socket_; }
-
-    void start()
-    {
-        boost::asio::async_read(socket_,
-                                boost::asio::buffer(nickname_, nickname_.size()),
-                                strand_.wrap(boost::bind(&personInRoom::nicknameHandler, shared_from_this(), _1)));
-    }
-
-    void onMessage(std::array<char, MAX_IP_PACK_SIZE>& msg)
-    {
-        bool write_in_progress = !write_msgs_.empty();
-        write_msgs_.push_back(msg);
-        if (!write_in_progress)
-        {
-            boost::asio::async_write(socket_,
-                                     boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                     strand_.wrap(boost::bind(&personInRoom::writeHandler, shared_from_this(), _1)));
-        }
-    }
-
-private:
-    void nicknameHandler(const boost::system::error_code& error)
-    {
-        if (strlen(nickname_.data()) <= MAX_NICKNAME_SIZE - 2)
-        {
-            strcat(nickname_.data(), ": ");
-        }
-        else
-        {
-            //cut off nickname if too long
-            nickname_[MAX_NICKNAME_SIZE - 2] = ':';
-            nickname_[MAX_NICKNAME_SIZE - 1] = ' ';
-        }
-
-        room_.enter(shared_from_this(), std::string(nickname_.data()));
-
-        boost::asio::async_read(socket_,
-                                boost::asio::buffer(read_msg_, read_msg_.size()),
-                                strand_.wrap(boost::bind(&personInRoom::readHandler, shared_from_this(), _1)));
-    }
-
-    void readHandler(const boost::system::error_code& error)
-    {
-        if (!error)
-        {
-            room_.broadcast(read_msg_, shared_from_this());
-
-            boost::asio::async_read(socket_,
-                                    boost::asio::buffer(read_msg_, read_msg_.size()),
-                                    strand_.wrap(boost::bind(&personInRoom::readHandler, shared_from_this(), _1)));
-        }
-        else
-        {
-            room_.leave(shared_from_this());
-        }
-    }
-
-    void writeHandler(const boost::system::error_code& error)
-    {
-        if (!error)
-        {
-            write_msgs_.pop_front();
-
-            if (!write_msgs_.empty())
-            {
-                boost::asio::async_write(socket_,
-                                         boost::asio::buffer(write_msgs_.front(), write_msgs_.front().size()),
-                                         strand_.wrap(boost::bind(&personInRoom::writeHandler, shared_from_this(), _1)));
-            }
-        }
-        else
-        {
-            room_.leave(shared_from_this());
-        }
-    }
-
-    tcp::socket socket_;
-    boost::asio::io_context::strand& strand_;
-    chatRoom& room_;
-    std::array<char, MAX_NICKNAME_SIZE> nickname_;
-    std::array<char, MAX_IP_PACK_SIZE> read_msg_;
-    std::deque<std::array<char, MAX_IP_PACK_SIZE> > write_msgs_;
-};
-
-class server
-{
-public:
-    server(boost::asio::io_context& io_context,
+Server::Server(boost::asio::io_context& io_context,
            boost::asio::io_context::strand& strand,
            const tcp::endpoint& endpoint)
-           : io_context_(io_context), strand_(strand), acceptor_(io_context, endpoint)
+: io_context_(io_context), strand_(strand), acceptor_(io_context, endpoint)
+{
+    run();
+}
+
+void Server::run()
+{
+    std::shared_ptr<personInRoom> new_participant(new personInRoom(io_context_, strand_, room_));
+    acceptor_.async_accept(new_participant->socket(), strand_.wrap(boost::bind(&Server::onAccept, this, new_participant, _1)));
+}
+
+void Server::onAccept(std::shared_ptr<personInRoom> new_participant, const boost::system::error_code& error)
+{
+    if (!error)
     {
-        run();
+        new_participant->start();
     }
 
-private:
-
-    void run()
-    {
-        std::shared_ptr<personInRoom> new_participant(new personInRoom(io_context_, strand_, room_));
-        acceptor_.async_accept(new_participant->socket(), strand_.wrap(boost::bind(&server::onAccept, this, new_participant, _1)));
-    }
-
-    void onAccept(std::shared_ptr<personInRoom> new_participant, const boost::system::error_code& error)
-    {
-        if (!error)
-        {
-            new_participant->start();
-        }
-
-        run();
-    }
-
-    boost::asio::io_context& io_context_;
-    boost::asio::io_context::strand& strand_;
-    tcp::acceptor acceptor_;
-    chatRoom room_;
-};
-
-//----------------------------------------------------------------------
+    run();
+}
 
 int main(int argc, char* argv[])
 {
@@ -247,11 +46,11 @@ int main(int argc, char* argv[])
 
         std::cout << "[" << std::this_thread::get_id() << "]" << "server starts" << std::endl;
 
-        std::list < std::shared_ptr < server >> servers;
+        std::list < std::shared_ptr < Server >> servers;
         for (int i = 1; i < argc; ++i)
         {
             tcp::endpoint endpoint(tcp::v4(), std::atoi(argv[i]));
-            std::shared_ptr<server> a_server(new server(*io_context, *strand, endpoint));
+            std::shared_ptr<Server> a_server(new Server(*io_context, *strand, endpoint));
             servers.push_back(a_server);
         }
 
