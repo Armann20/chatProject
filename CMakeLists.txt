@@ -32,4 +32,5 @@ target_link_libraries(server
  target_link_libraries(client
  PRIVATE
  Boost::system
+ Boost::thread
  )
