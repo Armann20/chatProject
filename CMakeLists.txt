@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.16)
-
 project(Chat VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -21,9 +20,17 @@ else()
   set(CMAKE_CXX_CLANG_TIDY ${CMAKE_CXX_CLANG_TIDY_EXECUTABLE})
 endif()
 
-find_package(Boost REQUIRED COMPONENTS system)
-
-add_executable(chat main.cpp)
-target_link_libraries(chat
+find_package(Boost REQUIRED COMPONENTS system thread)
+add_executable(server server.cpp)
+target_link_libraries(server
  PRIVATE
- Boost::system)
+ Boost::system
+ Boost::thread
+ )
+
+ add_executable(client client.cpp)
+ target_link_libraries(client
+ PRIVATE
+ Boost::system
+ Boost::thread
+ )
