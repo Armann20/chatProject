@@ -5,7 +5,7 @@
 #include "room_participants.h"
 
 using boost::asio::ip::tcp;
-
+using namespace boost::asio;
 Server::Server(boost::asio::io_context& io_context,
            boost::asio::io_context::strand& strand,
            const tcp::endpoint& endpoint)
@@ -17,7 +17,9 @@ Server::Server(boost::asio::io_context& io_context,
 void Server::run()
 {
     std::shared_ptr<personInRoom> new_participant(new personInRoom(io_context_, strand_, room_));
-    acceptor_.async_accept(new_participant->socket(), strand_.wrap(boost::bind(&Server::onAccept, this, new_participant, _1)));
+    acceptor_.async_accept(new_participant->socket(), strand_.wrap([this, new_participant](const boost::system::error_code& error){
+        onAccept(new_participant, error);
+    }));
 }
 
 void Server::onAccept(std::shared_ptr<personInRoom> new_participant, const boost::system::error_code& error)
@@ -57,7 +59,7 @@ int main(int argc, char* argv[])
         boost::thread_group workers;
         for (int i = 0; i < 1; ++i)
         {
-            boost::thread * t = new boost::thread{ boost::bind(&workerThread::run, io_context) };
+            boost::thread * t = new boost::thread{ &workerThread::run, io_context};
             workers.add_thread(t);
         }
 

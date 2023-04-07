@@ -1,5 +1,6 @@
 #ifndef WORKER_THREAD_H
 #define WORKER_THREAD_H
+
 #include "common_headers.h"
 namespace {
 class workerThread
@@ -25,4 +26,5 @@ private:
 };
 std::mutex workerThread::m;
 }
+
 #endif

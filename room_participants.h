@@ -7,7 +7,7 @@ class participant
 {
 public:
     virtual ~participant() = default;
-    virtual void onMessage(std::array<char, MAX_IP_PACK_SIZE> & msg) = 0;
+    virtual void onMessage(std::array<char, MAX_PACK_SIZE> & msg) = 0;
 };
 class chatRoom {
 public:
@@ -25,11 +25,11 @@ public:
         name_table_.erase(participant);
     }
 
-    void broadcast(std::array<char, MAX_IP_PACK_SIZE>& msg, std::shared_ptr<participant> participant)
+    void broadcast(std::array<char, MAX_PACK_SIZE>& msg, std::shared_ptr<participant> participant)
     {
         std::string timestamp = getTimestamp();
         std::string nickname = getNickname(participant);
-        std::array<char, MAX_IP_PACK_SIZE> formatted_msg;
+        std::array<char, MAX_PACK_SIZE> formatted_msg;
 
         strcpy(formatted_msg.data(), timestamp.c_str());
         strcat(formatted_msg.data(), nickname.c_str());
@@ -54,7 +54,7 @@ private:
     enum { max_recent_msgs = 100 };
     std::unordered_set<std::shared_ptr<participant>> participants_;
     std::unordered_map<std::shared_ptr<participant>, std::string> name_table_;
-    std::deque<std::array<char, MAX_IP_PACK_SIZE>> recent_msgs_;
+    std::deque<std::array<char, MAX_PACK_SIZE>> recent_msgs_;
 };
 class personInRoom: public participant,
                     public std::enable_shared_from_this<personInRoom>
@@ -75,7 +75,7 @@ public:
                                 strand_.wrap(boost::bind(&personInRoom::nicknameHandler, shared_from_this(), _1)));
     }
 
-    void onMessage(std::array<char, MAX_IP_PACK_SIZE>& msg)
+    void onMessage(std::array<char, MAX_PACK_SIZE>& msg)
     {
         bool write_in_progress = !write_msgs_.empty();
         write_msgs_.push_back(msg);
@@ -147,8 +147,8 @@ private:
     boost::asio::io_context::strand& strand_;
     chatRoom& room_;
     std::array<char, MAX_NICKNAME_SIZE> nickname_;
-    std::array<char, MAX_IP_PACK_SIZE> read_msg_;
-    std::deque<std::array<char, MAX_IP_PACK_SIZE> > write_msgs_;
+    std::array<char, MAX_PACK_SIZE> read_msg_;
+    std::deque<std::array<char, MAX_PACK_SIZE> > write_msgs_;
 };
 
 
