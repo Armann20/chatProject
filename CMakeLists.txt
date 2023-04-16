@@ -26,8 +26,9 @@ target_link_libraries(server
  PRIVATE
  Boost::system
  Boost::thread
+ sqlite3
  )
-
+ 
  add_executable(client client.cpp)
  target_link_libraries(client
  PRIVATE
